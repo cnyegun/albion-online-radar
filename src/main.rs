@@ -55,12 +55,17 @@ fn parse_args() -> Result<Cli> {
     Ok(cli)
 }
 
-/// First existing maps folder: flag, env var, next to the binary, then the source tree.
+/// First existing maps folder: flag, env var, next to the binary, the install
+/// folder (`~/.local/share/openradar/maps`), then the source tree.
 fn find_maps_dir(flag: Option<PathBuf>) -> Option<PathBuf> {
     let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from));
+    let data_home = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")));
     flag.into_iter()
         .chain(std::env::var_os("OPENRADAR_MAPS").map(PathBuf::from))
         .chain(exe_dir.map(|d| d.join("maps")))
+        .chain(data_home.map(|d| d.join("openradar/maps")))
         .chain(std::iter::once(PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/maps"))))
         .find(|d| d.is_dir())
 }
@@ -73,7 +78,26 @@ fn window_icon() -> Arc<egui::IconData> {
     })
 }
 
+/// Takes a lock held for the life of the process, so a second live radar (double
+/// alerts, double capture) refuses to start. `Err` means another one holds it; if
+/// the lock file cannot be used at all, the radar runs unguarded.
+fn single_instance() -> Result<Option<std::fs::File>, ()> {
+    let dir = std::env::var_os("XDG_RUNTIME_DIR").map_or_else(std::env::temp_dir, PathBuf::from);
+    let Ok(file) = std::fs::File::create(dir.join("openradar.lock")) else { return Ok(None) };
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(std::fs::TryLockError::WouldBlock) => Err(()),
+        Err(std::fs::TryLockError::Error(_)) => Ok(None),
+    }
+}
+
 fn run(cli: Cli) -> Result<()> {
+    // Replays are for testing and may run next to the live radar.
+    let instance = if cli.replay.is_empty() { single_instance() } else { Ok(None) };
+    if instance.is_err() {
+        eprintln!("OpenRadar is already running.");
+        return Ok(());
+    }
     let data = Arc::new(GameData::load().context("load game data")?);
     let settings = Settings::load();
     let game = Game::new(Arc::clone(&data));
@@ -84,16 +108,16 @@ fn run(cli: Cli) -> Result<()> {
         shared
     } else {
         let slot = Arc::new(OnceLock::new());
-            let (source, target) = runtime::start_live(&slot, &settings.capture_interfaces)?;
-            let shared = Shared::new(game, settings, source);
-            let _ = slot.set(Arc::clone(&shared));
-            if let Source::Live { manager, .. } = &shared.source {
-                if target.is_empty() {
-                    eprintln!("No capture interface found; pick one in Settings → Network.");
-                } else if let Err(e) = manager.reconfigure(&target) {
-                    eprintln!("Capture: {e}");
-                }
+        let (source, target) = runtime::start_live(&slot, &settings.capture_interfaces)?;
+        let shared = Shared::new(game, settings, source);
+        let _ = slot.set(Arc::clone(&shared));
+        if let Source::Live { manager, .. } = &shared.source {
+            if target.is_empty() {
+                eprintln!("No capture interface found; pick one in Settings → Network.");
+            } else if let Err(e) = manager.reconfigure(&target) {
+                eprintln!("Capture: {e}");
             }
+        }
         shared
     };
 
@@ -103,7 +127,7 @@ fn run(cli: Cli) -> Result<()> {
     }
 
     let saved = shared.settings();
-    let viewport = egui::ViewportBuilder::default()
+    let mut viewport = egui::ViewportBuilder::default()
         .with_title("OpenRadar")
         .with_app_id("openradar")
         .with_inner_size(saved.window_size.unwrap_or([1180.0, 780.0]))
@@ -113,11 +137,26 @@ fn run(cli: Cli) -> Result<()> {
         .with_transparent(true)
         .with_mouse_passthrough(saved.click_through)
         .with_icon(window_icon());
-    let options = eframe::NativeOptions { viewport, ..Default::default() };
+    let mut options = eframe::NativeOptions::default();
+    if saved.x11 {
+        // Wayland apps cannot stay on top or place themselves; X11 ones can.
+        viewport = viewport.with_window_level(egui::WindowLevel::AlwaysOnTop);
+        if let Some(pos) = saved.window_pos {
+            viewport = viewport.with_position(pos);
+        }
+        options.event_loop_builder = Some(Box::new(|b| {
+            winit::platform::x11::EventLoopBuilderExtX11::with_x11(b);
+        }));
+    }
+    options.viewport = viewport;
 
     let app_shared = Arc::clone(&shared);
-    eframe::run_native("OpenRadar", options, Box::new(move |cc| Ok(Box::new(app::RadarApp::new(cc, app_shared, maps_dir)))))
-        .map_err(|e| anyhow::anyhow!("window: {e}"))?;
+    eframe::run_native(
+        "OpenRadar",
+        options,
+        Box::new(move |cc| Ok(Box::new(app::RadarApp::new(cc, app_shared, maps_dir)))),
+    )
+    .map_err(|e| anyhow::anyhow!("window: {e}"))?;
 
     if let Source::Live { manager, .. } = &shared.source {
         manager.close(Duration::from_secs(2));

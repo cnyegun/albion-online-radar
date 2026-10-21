@@ -33,7 +33,9 @@ impl Stats {
     }
 
     fn has(&self, kind: &str, code: i64, keys: &[u8]) -> bool {
-        self.ops.get(kind).is_some_and(|ops| ops.iter().any(|o| o.real_code == code && keys.iter().all(|k| o.keys.contains(k))))
+        self.ops
+            .get(kind)
+            .is_some_and(|ops| ops.iter().any(|o| o.real_code == code && keys.iter().all(|k| o.keys.contains(k))))
     }
 }
 
@@ -124,9 +126,11 @@ fn fragments() {
 #[test]
 fn router_contract() {
     let s = replay("move_map_change.pcap");
-    for (kind, code, min, keys) in
-        [("request", 22, 50, &[0u8, 1, 3, 253][..]), ("response", 2, 1, &[8, 9, 253][..]), ("response", 41, 1, &[0, 253][..])]
-    {
+    for (kind, code, min, keys) in [
+        ("request", 22, 50, &[0u8, 1, 3, 253][..]),
+        ("response", 2, 1, &[8, 9, 253][..]),
+        ("response", 41, 1, &[0, 253][..]),
+    ] {
         assert!(s.count(kind, code) >= min, "{kind} {code}");
         assert!(s.has(kind, code, keys), "{kind} {code} {keys:?}");
     }

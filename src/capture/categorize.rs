@@ -1,17 +1,11 @@
 //! Classifies capture interfaces so sensible defaults can be picked.
 
-use std::sync::LazyLock;
-
-use regex::Regex;
-use serde::Serialize;
-
 use super::NetworkInterface;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Category {
-    Wifi,
     Ethernet,
+    Wifi,
     Exitlag,
     Vpn,
     Virtual,
@@ -21,64 +15,53 @@ pub enum Category {
 impl Category {
     pub fn as_str(self) -> &'static str {
         match self {
-            Category::Wifi => "wifi",
             Category::Ethernet => "ethernet",
+            Category::Wifi => "wifi",
             Category::Exitlag => "exitlag",
             Category::Vpn => "vpn",
             Category::Virtual => "virtual",
             Category::Other => "other",
         }
     }
-
-    fn rank(self) -> u8 {
-        match self {
-            Category::Ethernet => 0,
-            Category::Wifi => 1,
-            Category::Exitlag => 2,
-            Category::Vpn => 3,
-            Category::Virtual => 4,
-            Category::Other => 5,
-        }
-    }
 }
 
-// Order matters: Virtual first overrides Wi-Fi/Ethernet substrings; ExitLag before VPN.
-// `(?-u:\b)` keeps word boundaries ASCII-only, like Go's RE2.
-static RULES: LazyLock<Vec<(Category, Regex)>> = LazyLock::new(|| {
-    let b = r"(?-u:\b)";
-    [
-        (
-            Category::Virtual,
-            format!(
-                r"virtualbox|vmware|hyper-v|virtual switch|vethernet|teredo|loopback pseudo|software loopback|wi-fi direct|mobile hotspot|{b}docker\d|{b}br-|{b}virbr\d|{b}vmnet\d|{b}veth|{b}lo{b}"
-            ),
-        ),
-        (Category::Exitlag, r"exit\s*lag".to_owned()),
-        (Category::Vpn, format!(r"vpn|wireguard|wintun|tap-windows|openvpn|{b}tun\d|{b}tap\d|{b}wg\d|{b}ppp\d")),
-        (Category::Wifi, format!(r"wi-?fi|wireless|802\.11|{b}wlan\d|{b}wlp\d|{b}wifi\d")),
-        (Category::Ethernet, format!(r"ethernet|gigabit|family controller|{b}eth\d|{b}enp\d|{b}eno\d|{b}ens\d")),
-    ]
-    .into_iter()
-    .map(|(cat, re)| (cat, Regex::new(&re).expect("static regex")))
-    .collect()
-});
+/// Linux interface name prefixes followed by a digit (`wlp2s0`, `docker0`...).
+const NAME_RULES: [(Category, &[&str]); 4] = [
+    (Category::Virtual, &["docker", "virbr", "vmnet"]),
+    (Category::Vpn, &["tun", "tap", "wg", "ppp"]),
+    (Category::Wifi, &["wlan", "wlp", "wifi"]),
+    (Category::Ethernet, &["eth", "enp", "eno", "ens"]),
+];
+
+/// Lowercase substrings of the name or description. Checked first, in order.
+const TEXT_RULES: [(Category, &[&str]); 5] = [
+    (Category::Virtual, &["virtual", "vmware", "hyper-v", "loopback"]),
+    (Category::Exitlag, &["exitlag", "exit lag"]),
+    (Category::Vpn, &["vpn", "wireguard"]),
+    (Category::Wifi, &["wi-fi", "wifi", "wireless", "802.11"]),
+    (Category::Ethernet, &["ethernet", "gigabit"]),
+];
 
 pub fn categorize(name: &str, description: &str) -> Category {
-    if name.is_empty() && description.is_empty() {
-        return Category::Other;
+    let name = name.to_lowercase();
+    if name == "lo" || name.starts_with("br-") || name.starts_with("veth") {
+        return Category::Virtual;
     }
-    let hay = format!("{name} {description}").to_lowercase();
-    RULES.iter().find(|(_, re)| re.is_match(&hay)).map_or(Category::Other, |(cat, _)| *cat)
-}
-
-pub fn category_rank(name: &str, description: &str) -> u8 {
-    categorize(name, description).rank()
+    let text = format!("{name} {}", description.to_lowercase());
+    if let Some((cat, _)) = TEXT_RULES.iter().find(|(_, words)| words.iter().any(|w| text.contains(w))) {
+        return *cat;
+    }
+    let numbered = |p: &str| name.strip_prefix(p).is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()));
+    NAME_RULES
+        .iter()
+        .find(|(_, prefixes)| prefixes.iter().any(|p| numbered(p)))
+        .map_or(Category::Other, |(cat, _)| *cat)
 }
 
 /// Best candidates first: by category, then interfaces with a description.
 pub fn rank_candidates(input: &[NetworkInterface]) -> Vec<NetworkInterface> {
     let mut out = input.to_vec();
-    out.sort_by_key(|i| (category_rank(&i.name, &i.description), i.description.is_empty()));
+    out.sort_by_key(|i| (categorize(&i.name, &i.description), i.description.is_empty()));
     out
 }
 
@@ -93,14 +76,17 @@ mod tests {
             ("enp3s0", "", Category::Ethernet),
             ("wlan0", "", Category::Wifi),
             ("wlp2s0", "", Category::Wifi),
-            (r"\Device\NPF_{X}", "Intel(R) Wi-Fi 6 AX201 160MHz", Category::Wifi),
-            (r"\Device\NPF_{X}", "Realtek PCIe GbE Family Controller", Category::Ethernet),
-            (r"\Device\NPF_{X}", "Hyper-V Virtual Ethernet Adapter", Category::Virtual),
-            (r"\Device\NPF_{X}", "ExitLag Tunnel", Category::Exitlag),
+            ("wlp1s0", "Intel Wi-Fi 6 AX201", Category::Wifi),
+            ("eno1", "Realtek Gigabit Ethernet", Category::Ethernet),
+            ("vboxnet0", "VirtualBox Host-Only Ethernet", Category::Virtual),
+            ("exitlag0", "", Category::Exitlag),
             ("docker0", "", Category::Virtual),
+            ("br-1a2b3c", "", Category::Virtual),
+            ("veth12ab", "", Category::Virtual),
             ("lo", "", Category::Virtual),
             ("tun0", "", Category::Vpn),
             ("wg0", "", Category::Vpn),
+            ("tailscale0", "", Category::Other),
             ("bluetooth0", "", Category::Other),
             ("", "", Category::Other),
         ];

@@ -136,8 +136,14 @@ impl Manager {
             inner.next_id += 1;
             let id = inner.next_id;
             let stop = Arc::new(AtomicBool::new(false));
-            let thread =
-                spawn_worker(id, iface.name.clone(), source, Arc::clone(&stop), on_packet.clone(), Arc::clone(&self.inner));
+            let thread = spawn_worker(
+                id,
+                iface.name.clone(),
+                source,
+                Arc::clone(&stop),
+                on_packet.clone(),
+                Arc::clone(&self.inner),
+            );
             inner.active.insert(iface.name.clone(), Worker { id, stop, thread });
         }
 

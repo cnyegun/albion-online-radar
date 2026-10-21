@@ -19,7 +19,8 @@ pub fn load_clips<'a>(files: impl IntoIterator<Item = (String, Vec<u8>)> + 'a) -
         }
         match wav::decode_wav(&raw) {
             Ok(pcm) => {
-                let samples = pcm.chunks_exact(2).map(|s| f32::from(i16::from_le_bytes([s[0], s[1]])) / 32768.0).collect();
+                let samples =
+                    pcm.as_chunks::<2>().0.iter().map(|s| f32::from(i16::from_le_bytes(*s)) / 32768.0).collect();
                 clips.insert(name, Arc::new(samples));
             }
             Err(e) => log_warn!("SND", "sound skipped, {name}: {e}"),

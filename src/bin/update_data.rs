@@ -56,7 +56,8 @@ fn attr<'a>(v: &'a Value, name: &str) -> Option<&'a str> {
 /// Leading integer of an attribute, like JavaScript's `parseInt` (0 when absent).
 fn int_attr(v: &Value, name: &str) -> i64 {
     let s = attr(v, name).unwrap_or("").trim();
-    let end = s.char_indices().find(|(i, c)| !(c.is_ascii_digit() || (*i == 0 && *c == '-'))).map_or(s.len(), |(i, _)| i);
+    let end =
+        s.char_indices().find(|(i, c)| !(c.is_ascii_digit() || (*i == 0 && *c == '-'))).map_or(s.len(), |(i, _)| i);
     s[..end].parse().unwrap_or(0)
 }
 

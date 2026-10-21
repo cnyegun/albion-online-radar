@@ -1,26 +1,25 @@
 # OpenRadar
 
-A radar overlay for Albion Online on Linux (Wayland). It reads the game's network traffic and shows nearby
+A radar overlay for Albion Online on Linux (GNOME). It reads the game's network traffic and shows nearby
 resources, mobs and mist portals on the map. It alerts you when a player comes near. It doesn't modify or inject
 anything into the game.
 
-## Build
+## Install
 
 ```bash
 sudo dnf install libpcap-devel alsa-lib-devel   # Fedora
 sudo apt install libpcap-dev libasound2-dev     # Debian/Ubuntu
 
-cargo build --release
-sudo setcap cap_net_raw=eip target/release/openradar   # repeat after every build
+./install.sh
 ```
+
+This builds the radar, installs it to `~/.local/bin` with an app-grid entry, and asks for sudo once so it can
+capture packets without root. Run it again after pulling changes. `./install.sh --uninstall` removes it.
 
 ## Run
 
-```bash
-target/release/openradar
-```
-
-Change zone once in game so the radar knows where you are.
+Start OpenRadar from the app grid, then change zone once in game so the radar knows where you are. Only one radar
+runs at a time.
 
 Clicks pass through the radar to the game. Use Alt+Tab to focus it, then:
 
@@ -29,7 +28,11 @@ Clicks pass through the radar to the game. Use Alt+Tab to focus it, then:
 | F1 | Settings |
 | F2 | Click-through on/off (off lets you zoom and hover) |
 | Ctrl+Q | Quit |
-| Alt+Space | Move, resize, always on top |
+| Alt+Space | Move, resize |
+
+The radar runs through XWayland by default so it can stay on top and remember its position. This looks blurry
+on monitors with fractional scaling; turn off X11 mode in Settings → Display there and use Alt+Space → Always on Top
+instead.
 
 Settings are saved in `~/.config/openradar/native.json`.
 
@@ -47,7 +50,7 @@ To silence players, guilds or alliances, add them to the ignore list in Settings
 
 ```bash
 cargo run --release --bin update-data
-cargo build --release
+./install.sh
 ```
 
 ## Credits

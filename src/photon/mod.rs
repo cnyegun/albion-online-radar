@@ -21,7 +21,6 @@ mod value;
 pub use packet::{PhotonHandler, PhotonParser};
 pub use value::{Params, Value};
 
-
 /// Albion event code for Move (dispatch byte 3).
 pub const EVENT_CODE_MOVE: u8 = 3;
 
@@ -98,17 +97,26 @@ mod tests {
     fn move_live_samples() {
         let cases: [(&[u8], f32, f32); 3] = [
             (
-                &[3, 104, 88, 142, 195, 84, 154, 222, 8, 176, 230, 36, 195, 237, 215, 175, 67, 166, 0, 0, 176, 63, 245, 26, 37, 195, 158, 196, 175, 67],
+                &[
+                    3, 104, 88, 142, 195, 84, 154, 222, 8, 176, 230, 36, 195, 237, 215, 175, 67, 166, 0, 0, 176, 63,
+                    245, 26, 37, 195, 158, 196, 175, 67,
+                ],
                 -164.90112,
                 351.68692,
             ),
             (
-                &[3, 69, 127, 142, 195, 84, 154, 222, 8, 39, 231, 225, 194, 19, 187, 160, 67, 164, 0, 0, 64, 64, 148, 73, 233, 194, 164, 52, 159, 67],
+                &[
+                    3, 69, 127, 142, 195, 84, 154, 222, 8, 39, 231, 225, 194, 19, 187, 160, 67, 164, 0, 0, 64, 64, 148,
+                    73, 233, 194, 164, 52, 159, 67,
+                ],
                 -112.95147,
                 321.46152,
             ),
             (
-                &[3, 218, 111, 173, 195, 84, 154, 222, 8, 131, 204, 183, 194, 26, 170, 171, 67, 29, 0, 0, 128, 63, 92, 82, 178, 194, 166, 68, 173, 67],
+                &[
+                    3, 218, 111, 173, 195, 84, 154, 222, 8, 131, 204, 183, 194, 26, 170, 171, 67, 29, 0, 0, 128, 63,
+                    92, 82, 178, 194, 166, 68, 173, 67,
+                ],
                 -91.89944,
                 343.32892,
             ),
@@ -151,7 +159,12 @@ mod tests {
         post_process_request(&mut req);
         assert_eq!(req.parameters[&253], Value::Byte(21));
 
-        let mut resp = OperationResponse { operation_code: 42, return_code: 0, debug_message: String::new(), parameters: Params::new() };
+        let mut resp = OperationResponse {
+            operation_code: 42,
+            return_code: 0,
+            debug_message: String::new(),
+            parameters: Params::new(),
+        };
         post_process_response(&mut resp);
         assert_eq!(resp.parameters[&253], Value::Byte(42));
     }

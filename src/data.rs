@@ -153,7 +153,8 @@ struct RawItem {
     p: u32,
 }
 
-const MIST_BOSSES: [&str; 4] = ["_MOB_MISTS_FAIRYDRAGON", "_MOB_MISTS_GRIFFIN", "_MOB_MISTS_SPIDER", "_MOB_ARCANE_CRYSTALSPIDER"];
+const MIST_BOSSES: [&str; 4] =
+    ["_MOB_MISTS_FAIRYDRAGON", "_MOB_MISTS_GRIFFIN", "_MOB_MISTS_SPIDER", "_MOB_ARCANE_CRYSTALSPIDER"];
 
 fn classify_hostile(category: &str, unique_name: &str) -> MobClass {
     let name = unique_name.to_ascii_uppercase();
@@ -182,8 +183,7 @@ pub struct GameData {
 
 impl GameData {
     pub fn load() -> anyhow::Result<Self> {
-        let raw_zones: HashMap<String, RawZone> =
-            serde_json::from_slice(include_bytes!("../data/zones.json"))?;
+        let raw_zones: HashMap<String, RawZone> = serde_json::from_slice(include_bytes!("../data/zones.json"))?;
         let zones = raw_zones
             .into_iter()
             .map(|(id, z)| {
@@ -206,8 +206,7 @@ impl GameData {
             })
             .collect();
 
-        let raw_items: Vec<Option<RawItem>> =
-            serde_json::from_slice(include_bytes!("../data/items.min.json"))?;
+        let raw_items: Vec<Option<RawItem>> = serde_json::from_slice(include_bytes!("../data/items.min.json"))?;
         let item_power = raw_items.into_iter().map(|i| i.map_or(0, |i| i.p)).collect();
 
         Ok(Self { zones, mobs, item_power })

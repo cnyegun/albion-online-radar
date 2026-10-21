@@ -47,10 +47,7 @@ fn deserialize_at(r: &mut Reader, tc: u8, depth: u32) -> Value {
         TYPE_OPERATION_REQUEST => {
             let op_code = r.read_byte().unwrap_or(0);
             let params = read_parameter_table_at(r, depth);
-            Value::Object(vec![
-                ("operationCode", Value::Byte(op_code)),
-                ("parameters", Value::Params(params)),
-            ])
+            Value::Object(vec![("operationCode", Value::Byte(op_code)), ("parameters", Value::Params(params))])
         }
         TYPE_OPERATION_RESPONSE => {
             if r.len() < 3 {
@@ -132,11 +129,7 @@ fn deserialize_dictionary(r: &mut Reader, depth: u32) -> IndexMap<String, Value>
         };
         let key = deserialize_at(r, kt, depth);
         let val = deserialize_at(r, vt, depth);
-        let key = if key.is_hashable() {
-            key.key_string()
-        } else {
-            format!("UNHASHABLE_{i}_{}", key.go_type_name())
-        };
+        let key = key.key_string().unwrap_or_else(|| format!("#{i}"));
         out.insert(key, val);
     }
     out
@@ -337,7 +330,10 @@ mod tests {
             Value::Array(vec![Value::Byte(0x0a), Value::Byte(0x0b), Value::Byte(0x0c)])
         );
         assert_eq!(de(TYPE_ARRAY | TYPE_BYTE, &[0x03, 0x0a, 0x0b, 0x0c]), Value::ByteArray(vec![0x0a, 0x0b, 0x0c]));
-        assert_eq!(de(TYPE_ARRAY | TYPE_SHORT, &[0x02, 0x34, 0x12, 0x78, 0x56]), Value::ShortArray(vec![0x1234, 0x5678]));
+        assert_eq!(
+            de(TYPE_ARRAY | TYPE_SHORT, &[0x02, 0x34, 0x12, 0x78, 0x56]),
+            Value::ShortArray(vec![0x1234, 0x5678])
+        );
         assert_eq!(de(TYPE_ARRAY | TYPE_FLOAT, &[0x01, 0x00, 0x00, 0x80, 0x3f]), Value::FloatArray(vec![1.0]));
         assert_eq!(
             de(TYPE_ARRAY | TYPE_STRING, &[0x02, 0x01, b'a', 0x02, b'b', b'c']),
@@ -367,7 +363,7 @@ mod tests {
         assert_eq!(de(TYPE_HASHTABLE, &[TYPE_BYTE, TYPE_BYTE, 0x01, 0x07, 0x08]), ht(&[("7", Value::Byte(8))]));
         assert_eq!(
             de(TYPE_DICTIONARY, &[TYPE_ARRAY | TYPE_BYTE, TYPE_BYTE, 0x01, 0x01, 0x09, 0x05]),
-            ht(&[("UNHASHABLE_0_photon.ByteArray", Value::Byte(5))])
+            ht(&[("#0", Value::Byte(5))])
         );
     }
 
@@ -408,7 +404,8 @@ mod tests {
         assert_eq!(resp.return_code, 0);
         assert_eq!(resp.debug_message, "ok");
 
-        let resp = deserialize_response(&[0x15, 0x00, 0x00, TYPE_ARRAY | TYPE_STRING, 0x01, 0x03, b'a', b'b', b'c']).unwrap();
+        let resp =
+            deserialize_response(&[0x15, 0x00, 0x00, TYPE_ARRAY | TYPE_STRING, 0x01, 0x03, b'a', b'b', b'c']).unwrap();
         assert!(resp.debug_message.is_empty());
         assert_eq!(resp.parameters[&0], Value::StringArray(vec!["abc".into()]));
     }
@@ -416,9 +413,46 @@ mod tests {
     #[test]
     fn request_op_move_post_patch() {
         let payload = [
-            0x16, 0x05, 0x00, TYPE_LONG2, 0xe8, 0x03, 0x01, TYPE_ARRAY | TYPE_FLOAT, 0x02, 0x00, 0x00, 0x28, 0x41, 0x00,
-            0x00, 0xa4, 0x41, 0x02, TYPE_FLOAT, 0x00, 0x00, 0xc0, 0x3f, 0x03, TYPE_ARRAY | TYPE_FLOAT, 0x02, 0x00, 0x00,
-            0x18, 0x41, 0x00, 0x00, 0x9c, 0x41, 0x04, TYPE_FLOAT, 0x00, 0x00, 0xb0, 0x40,
+            0x16,
+            0x05,
+            0x00,
+            TYPE_LONG2,
+            0xe8,
+            0x03,
+            0x01,
+            TYPE_ARRAY | TYPE_FLOAT,
+            0x02,
+            0x00,
+            0x00,
+            0x28,
+            0x41,
+            0x00,
+            0x00,
+            0xa4,
+            0x41,
+            0x02,
+            TYPE_FLOAT,
+            0x00,
+            0x00,
+            0xc0,
+            0x3f,
+            0x03,
+            TYPE_ARRAY | TYPE_FLOAT,
+            0x02,
+            0x00,
+            0x00,
+            0x18,
+            0x41,
+            0x00,
+            0x00,
+            0x9c,
+            0x41,
+            0x04,
+            TYPE_FLOAT,
+            0x00,
+            0x00,
+            0xb0,
+            0x40,
         ];
         let req = deserialize_request(&payload).unwrap();
         assert_eq!(req.operation_code, 22);
@@ -432,8 +466,31 @@ mod tests {
     #[test]
     fn join_response_hashtable_at_param_103() {
         let payload = [
-            0x02, 0x00, 0x00, TYPE_NULL, 0x02, 0x09, TYPE_ARRAY | TYPE_FLOAT, 0x02, 0x00, 0x00, 0xc8, 0x42, 0x00, 0x00, 0x48,
-            0x43, 0x67, TYPE_HASHTABLE, TYPE_BYTE, TYPE_BYTE, 0x02, 0x05, 0x01, 0x07, 0x00,
+            0x02,
+            0x00,
+            0x00,
+            TYPE_NULL,
+            0x02,
+            0x09,
+            TYPE_ARRAY | TYPE_FLOAT,
+            0x02,
+            0x00,
+            0x00,
+            0xc8,
+            0x42,
+            0x00,
+            0x00,
+            0x48,
+            0x43,
+            0x67,
+            TYPE_HASHTABLE,
+            TYPE_BYTE,
+            TYPE_BYTE,
+            0x02,
+            0x05,
+            0x01,
+            0x07,
+            0x00,
         ];
         let resp = deserialize_response(&payload).unwrap();
         assert_eq!(resp.parameters[&9], Value::FloatArray(vec![100.0, 200.0]));

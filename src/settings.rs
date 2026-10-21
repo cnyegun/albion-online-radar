@@ -21,8 +21,9 @@ impl Default for ResourceFilter {
 }
 
 impl ResourceFilter {
+    /// `min_tier` counts each enchant level as one tier: 4.2, 5.1 and 6.0 all pass "6".
     pub fn accepts(&self, tier: u8, enchant: u8) -> bool {
-        self.show && tier >= self.min_tier && enchant >= self.min_enchant
+        self.show && tier + enchant >= self.min_tier && enchant >= self.min_enchant
     }
 }
 
@@ -37,6 +38,8 @@ pub struct Settings {
     pub map_opacity: f32,
     /// Opacity of the empty area around the map (0 = see-through).
     pub background_opacity: f32,
+    /// Width (px) over which the map and background fade out at the window edges.
+    pub edge_fade: f32,
     pub icon_scale: f32,
     pub show_rings: bool,
 
@@ -65,9 +68,14 @@ pub struct Settings {
 
     /// Last window size (points), restored at startup.
     pub window_size: Option<[f32; 2]>,
+    /// Last window position; only X11 lets apps know and set it.
+    pub window_pos: Option<[f32; 2]>,
     pub window_maximized: bool,
     /// Clicks pass through the radar to the game underneath.
     pub click_through: bool,
+    /// Run through XWayland: always on top and a remembered position, but blurry
+    /// on fractionally scaled monitors. Applies at the next start.
+    pub x11: bool,
     /// Capture interface names; empty means auto-select.
     pub capture_interfaces: Vec<String>,
 }
@@ -80,6 +88,7 @@ impl Default for Settings {
             map_brightness: 0.8,
             map_opacity: 0.7,
             background_opacity: 0.0,
+            edge_fade: 40.0,
             icon_scale: 1.0,
             show_rings: true,
             static_resources: [ResourceFilter::default(); 5],
@@ -101,8 +110,10 @@ impl Default for Settings {
             alert_cooldown_ms: 500,
             ignore_list: Vec::new(),
             window_size: None,
+            window_pos: None,
             window_maximized: false,
             click_through: true,
+            x11: true,
             capture_interfaces: Vec::new(),
         }
     }
@@ -141,7 +152,10 @@ impl Settings {
     }
 
     pub fn load() -> Self {
-        Self::path().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+        Self::path()
+            .and_then(|p| std::fs::read(p).ok())
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default()
     }
 
     pub fn save(&self) -> std::io::Result<()> {
@@ -164,6 +178,18 @@ mod tests {
         let s = Settings { ignore_list: vec!["  my guild ".into(), "".into()], ..Settings::default() };
         assert!(s.is_ignored(&["Someone", "My Guild", ""]));
         assert!(!s.is_ignored(&["Someone", "", ""]));
+    }
+
+    #[test]
+    fn enchant_counts_as_tier() {
+        let f = ResourceFilter { show: true, min_tier: 6, min_enchant: 0 };
+        for (tier, enchant) in [(6, 0), (5, 1), (4, 2), (4, 3), (4, 4), (8, 0)] {
+            assert!(f.accepts(tier, enchant), "{tier}.{enchant}");
+        }
+        for (tier, enchant) in [(5, 0), (4, 1), (3, 2)] {
+            assert!(!f.accepts(tier, enchant), "{tier}.{enchant}");
+        }
+        assert!(!ResourceFilter { min_enchant: 1, ..f }.accepts(6, 0));
     }
 
     #[test]

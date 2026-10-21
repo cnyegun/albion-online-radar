@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=OpenRadar
+Comment=Radar overlay for Albion Online
+Exec=@BIN@
+Icon=openradar
+Terminal=false
+Categories=Game;
+Keywords=albion;radar;overlay;
+StartupWMClass=openradar
+SingleMainWindow=true

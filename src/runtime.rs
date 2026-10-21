@@ -2,7 +2,6 @@
 //! plus threat alerts. Runs on capture threads; the UI only reads the result.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
@@ -21,13 +20,6 @@ pub fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 #[derive(Default)]
-pub struct Stats {
-    pub packets: AtomicU64,
-    pub parse_errors: AtomicU64,
-    pub encrypted: AtomicU64,
-}
-
-#[derive(Default)]
 pub struct AlertState {
     pub flash_at: Option<Instant>,
     /// Latest threat, shown as a banner for a few seconds.
@@ -43,7 +35,6 @@ pub enum Source {
 pub struct Shared {
     pub game: Mutex<Game>,
     pub settings: RwLock<Settings>,
-    pub stats: Stats,
     pub alert: Mutex<AlertState>,
     pub source: Source,
     pub sounds: Vec<String>,
@@ -54,7 +45,6 @@ pub struct Shared {
 /// Feeds decoded messages into the game state.
 struct Feed<'a> {
     game: &'a mut Game,
-    stats: &'a Stats,
 }
 
 impl PhotonHandler for Feed<'_> {
@@ -69,12 +59,6 @@ impl PhotonHandler for Feed<'_> {
     fn on_response(&mut self, mut r: OperationResponse) {
         post_process_response(&mut r);
         self.game.on_response(&r);
-    }
-    fn on_encrypted(&mut self) {
-        self.stats.encrypted.fetch_add(1, Ordering::Relaxed);
-    }
-    fn on_parse_error(&mut self, _reason: &str, _len: usize) {
-        self.stats.parse_errors.fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -95,7 +79,6 @@ impl Shared {
         Arc::new(Self {
             game: Mutex::new(game),
             settings: RwLock::new(settings),
-            stats: Stats::default(),
             alert: Mutex::default(),
             source,
             sounds: SOUNDS.iter().map(|(n, _)| (*n).to_owned()).collect(),
@@ -126,10 +109,7 @@ impl Shared {
     pub fn handle_payload(&self, parser: &mut PhotonParser, payload: &[u8]) {
         let threats = {
             let mut game = lock(&self.game);
-            let mut feed = Feed { game: &mut game, stats: &self.stats };
-            if parser.receive_packet(payload, &mut feed) {
-                self.stats.packets.fetch_add(1, Ordering::Relaxed);
-            }
+            parser.receive_packet(payload, &mut Feed { game: &mut game });
             game.take_threats()
         };
         if !threats.is_empty() {
@@ -181,7 +161,10 @@ pub fn choose_interfaces(saved: &[String], all: &[NetworkInterface]) -> Vec<Netw
     let physical: Vec<_> = capture::rank_candidates(all)
         .into_iter()
         .filter(|i| {
-            matches!(capture::categorize(&i.name, &i.description), Category::Ethernet | Category::Wifi | Category::Exitlag)
+            matches!(
+                capture::categorize(&i.name, &i.description),
+                Category::Ethernet | Category::Wifi | Category::Exitlag
+            )
         })
         .collect();
     let private: Vec<_> = physical.iter().filter(|i| capture::is_rfc1918(&i.address)).cloned().collect();
@@ -189,7 +172,10 @@ pub fn choose_interfaces(saved: &[String], all: &[NetworkInterface]) -> Vec<Netw
 }
 
 /// Starts live capture and returns the source handle.
-pub fn start_live(shared_slot: &Arc<OnceLock<Arc<Shared>>>, saved: &[String]) -> Result<(Source, Vec<NetworkInterface>)> {
+pub fn start_live(
+    shared_slot: &Arc<OnceLock<Arc<Shared>>>,
+    saved: &[String],
+) -> Result<(Source, Vec<NetworkInterface>)> {
     let all = capture::enumerate_interfaces().context("list capture interfaces")?;
     let manager = Arc::new(Manager::new());
     let parser = Mutex::new(PhotonParser::new());

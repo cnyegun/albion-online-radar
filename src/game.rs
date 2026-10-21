@@ -83,7 +83,7 @@ fn floats(v: Option<&Value>) -> Option<Vec<f32>> {
         Value::DoubleArray(a) => a.iter().map(|x| *x as f32).collect(),
         Value::Array(a) => a.iter().filter_map(num).map(|x| x as f32).collect(),
         // Older builds sent positions as raw little-endian float buffers.
-        Value::ByteArray(b) => b.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect(),
+        Value::ByteArray(b) => b.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect(),
         _ => return None,
     })
 }
@@ -280,10 +280,12 @@ impl Game {
             let choice = self.pending_mist_choice.take().filter(|(at, _)| now.duration_since(*at) <= MIST_CHOICE_TTL);
             let mut forced = choice.map(|(_, lethal)| if lethal { PvpType::Black } else { PvpType::Yellow });
             let origin = if is_sanctuary(&previous) {
-                self.last_mist.clone().filter(|(_, _, at)| now.duration_since(*at) <= MIST_CHAIN_TTL).map(|(o, pvp, _)| {
-                    forced = forced.or(Some(pvp));
-                    o
-                })
+                self.last_mist.clone().filter(|(_, _, at)| now.duration_since(*at) <= MIST_CHAIN_TTL).map(
+                    |(o, pvp, _)| {
+                        forced = forced.or(Some(pvp));
+                        o
+                    },
+                )
             } else if is_plain_mist(&previous) {
                 self.mist_zones.get(&previous).cloned().map(|m| {
                     forced = forced.or(Some(m.pvp));
@@ -326,7 +328,9 @@ impl Game {
         let id = int(p, 0).unwrap_or(-1);
         match code {
             ev::LEAVE => {
-                let removed = self.players.remove(&id).is_some() | self.mobs.remove(&id).is_some() | self.mists.remove(&id).is_some();
+                let removed = self.players.remove(&id).is_some()
+                    | self.mobs.remove(&id).is_some()
+                    | self.mists.remove(&id).is_some();
                 if removed {
                     self.revision += 1;
                 }
@@ -440,7 +444,8 @@ impl Game {
                 }
             }
             Some(op::LEGACY_MAP_CHANGE) => {
-                let debounced = self.map_id.is_some() && self.last_map_change.is_some_and(|t| t.elapsed() < MAP_CHANGE_DEBOUNCE);
+                let debounced =
+                    self.map_id.is_some() && self.last_map_change.is_some_and(|t| t.elapsed() < MAP_CHANGE_DEBOUNCE);
                 if let Some(new_id) = string(p, 0)
                     && !debounced
                     && self.map_id.as_deref() != Some(new_id)
@@ -646,6 +651,14 @@ impl Game {
 }
 
 #[cfg(test)]
+impl GameData {
+    /// Any zone id with the given pvp type.
+    pub fn zones_with(&self, pvp: PvpType) -> String {
+        self.zone_ids().find(|id| self.zone(id).is_some_and(|z| z.pvp == pvp)).unwrap().clone()
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use std::path::Path;
 
@@ -723,7 +736,8 @@ mod tests {
     #[test]
     fn whole_capture_set_replays_cleanly() {
         let mut g = game();
-        for f in ["move_heavy.pcap", "generic_events.pcap", "move_map_change.pcap", "fragments.pcap", "operations.pcap"] {
+        for f in ["move_heavy.pcap", "generic_events.pcap", "move_map_change.pcap", "fragments.pcap", "operations.pcap"]
+        {
             replay(&mut g, f);
         }
         assert!(g.map_id.is_some());
@@ -774,7 +788,11 @@ mod tests {
         g.apply_map_change(&safe);
         g.on_request(&OperationRequest {
             operation_code: 1,
-            parameters: params(vec![(1, Value::Byte(8)), (2, Value::Byte(1)), (253, Value::Short(op::MISTS_USE_STATIC_ENTRANCE as i16))]),
+            parameters: params(vec![
+                (1, Value::Byte(8)),
+                (2, Value::Byte(1)),
+                (253, Value::Short(op::MISTS_USE_STATIC_ENTRANCE as i16)),
+            ]),
         });
         g.apply_map_change("@MISTS@def");
         assert_eq!(g.zone().unwrap().pvp, PvpType::Black);
@@ -793,13 +811,5 @@ mod tests {
         assert!(g.harvestables.contains_key(&1) && !g.harvestables.contains_key(&2));
         g.harvestable_change(&params(vec![(0, Value::Int(1))]));
         assert!(g.harvestables.is_empty());
-    }
-}
-
-#[cfg(test)]
-impl GameData {
-    /// Any zone id with the given pvp type.
-    pub fn zones_with(&self, pvp: PvpType) -> String {
-        self.zone_ids().find(|id| self.zone(id).is_some_and(|z| z.pvp == pvp)).unwrap().clone()
     }
 }
