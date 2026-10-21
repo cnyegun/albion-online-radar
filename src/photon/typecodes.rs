@@ -1,0 +1,39 @@
+//! Protocol18 type codes.
+
+pub const TYPE_UNKNOWN: u8 = 0;
+pub const TYPE_BOOLEAN: u8 = 2;
+pub const TYPE_BYTE: u8 = 3;
+pub const TYPE_SHORT: u8 = 4;
+pub const TYPE_FLOAT: u8 = 5;
+pub const TYPE_DOUBLE: u8 = 6;
+pub const TYPE_STRING: u8 = 7;
+pub const TYPE_NULL: u8 = 8;
+pub const TYPE_COMPRESSED_INT: u8 = 9;
+pub const TYPE_COMPRESSED_LONG: u8 = 10;
+pub const TYPE_INT1: u8 = 11;
+pub const TYPE_INT1_NEG: u8 = 12;
+pub const TYPE_INT2: u8 = 13;
+pub const TYPE_INT2_NEG: u8 = 14;
+pub const TYPE_LONG1: u8 = 15;
+pub const TYPE_LONG1_NEG: u8 = 16;
+pub const TYPE_LONG2: u8 = 17;
+pub const TYPE_LONG2_NEG: u8 = 18;
+pub const TYPE_CUSTOM: u8 = 19;
+pub const TYPE_DICTIONARY: u8 = 20;
+pub const TYPE_HASHTABLE: u8 = 21;
+pub const TYPE_OBJECT_ARRAY: u8 = 23;
+pub const TYPE_OPERATION_REQUEST: u8 = 24;
+pub const TYPE_OPERATION_RESPONSE: u8 = 25;
+pub const TYPE_EVENT_DATA: u8 = 26;
+pub const TYPE_BOOL_FALSE: u8 = 27;
+pub const TYPE_BOOL_TRUE: u8 = 28;
+pub const TYPE_SHORT_ZERO: u8 = 29;
+pub const TYPE_INT_ZERO: u8 = 30;
+pub const TYPE_LONG_ZERO: u8 = 31;
+pub const TYPE_FLOAT_ZERO: u8 = 32;
+pub const TYPE_DOUBLE_ZERO: u8 = 33;
+pub const TYPE_BYTE_ZERO: u8 = 34;
+pub const TYPE_ARRAY: u8 = 0x40;
+pub const CUSTOM_TYPE_SLIM_BASE: u8 = 0x80;
+
+pub const MAX_ARRAY_SIZE: usize = 65536;

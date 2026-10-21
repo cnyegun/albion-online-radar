@@ -1,0 +1,44 @@
+[package]
+name = "openradar"
+version = "3.0.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Native real-time radar for Albion Online (passive Photon capture)"
+license-file = "LICENSE"
+publish = false
+
+[lib]
+name = "openradar"
+path = "src/lib.rs"
+
+# The radar window.
+[[bin]]
+name = "openradar"
+path = "src/main.rs"
+
+# Refreshes data/*.json from ao-data/ao-bin-dumps after a game patch.
+[[bin]]
+name = "update-data"
+path = "src/bin/update_data.rs"
+
+[features]
+default = ["audio"]
+# Alert sounds. Needs ALSA headers on Linux (alsa-lib-devel / libasound2-dev).
+audio = ["dep:rodio"]
+
+[dependencies]
+anyhow = "1.0"
+eframe = { version = "0.37", default-features = false, features = ["glow", "wayland", "default_fonts", "clipboard"] }
+image = { version = "0.25", default-features = false, features = ["webp", "png"] }
+indexmap = "2.14"
+pcap = "2.5"
+regex = "1.13"
+rodio = { version = "0.23", default-features = false, features = ["playback"], optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ureq = "3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
