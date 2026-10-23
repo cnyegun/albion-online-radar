@@ -1,8 +1,25 @@
 # OpenRadar
 
-A radar overlay for Albion Online on Linux (GNOME). It reads the game's network traffic and shows nearby
-resources, mobs and mist portals on the map. It alerts you when a player comes near. It doesn't modify or inject
-anything into the game.
+**See every enchanted node before you're close enough to see it.** OpenRadar is a native radar overlay for
+Albion Online on Linux. It sits on top of the game and shows the resources, mobs and mist portals around you,
+using the game's real icons and the zone's map. When a hostile player shows up, it warns you before they reach
+you.
+
+![OpenRadar in a T8 black zone: enchanted ore, fiber, wood, rock and hide around the player, with a tooltip
+on a T8.3 ore node](docs/images/radar.png)
+
+- **Every enchant at a glance.** Nodes are drawn with their in-game icons, so .1 green, .2 blue, .3 purple and
+  .4 gold stand out right away. Hover a node to see its tier, enchant, charges left and distance.
+- **Filter for what pays.** Set a minimum tier and enchant per resource. Each enchant counts as one tier, so
+  "min 6" shows 6.0, 5.1 and 4.2 alike.
+- **Know when to run.** Hostile players trigger a banner with their name, guild and item power, plus a red
+  flash and a sound. The number in the corner is how many threats are nearby.
+- **Mobs and mists too.** Bosses, enchanted mobs and mist portals are marked, and mobs show their health.
+- **Native and light.** One small Rust binary with no browser and no Electron. It only reads network traffic and
+  doesn't modify or inject anything into the game.
+
+![A hostile player alert: a red banner showing the player's name, guild and item power, and a threat count of
+3](docs/images/alert.png)
 
 ## Install
 
@@ -36,6 +53,9 @@ instead.
 
 Settings are saved in `~/.config/openradar/native.json`.
 
+![The settings window, Resources tab: minimum tier and enchant sliders for static and living
+resources](docs/images/settings.png)
+
 ## Alerts
 
 | Zone | Alerts on |
@@ -51,6 +71,15 @@ To silence players, guilds or alliances, add them to the ignore list in Settings
 ```bash
 cargo run --release --bin update-data
 ./install.sh
+```
+
+## Screenshots
+
+The images above are rendered off-screen from staged scenes, so no real players or screens appear in them.
+To regenerate them after a UI change:
+
+```bash
+cargo test --release -- --ignored readme_screenshots
 ```
 
 ## Credits

@@ -1,6 +1,8 @@
 //! The radar window.
 
 mod radar;
+#[cfg(test)]
+mod screenshots;
 mod settings_ui;
 mod snapshot;
 mod textures;

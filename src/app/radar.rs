@@ -180,6 +180,12 @@ impl RadarApp {
             painter.galley(pos, galley, Color32::WHITE);
         }
 
+        if snap.threats > 0 {
+            let at = rect.right_top() + Vec2::new(-14.0, 10.0);
+            let font = FontId::proportional(18.0);
+            painter.text(at + Vec2::splat(1.0), Align2::RIGHT_TOP, snap.threats.to_string(), font.clone(), BG);
+            painter.text(at, Align2::RIGHT_TOP, snap.threats.to_string(), font, DANGER);
+        }
         self.capture_warning(&painter, rect);
         self.alert_overlay(&ctx, &painter, rect);
     }

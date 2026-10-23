@@ -1,7 +1,7 @@
 //! What to draw this frame, copied out of the game state under its lock.
 
 use crate::data::{Bounds, MobClass, Resource};
-use crate::game::{Game, ZoneView};
+use crate::game::{Game, ZoneView, is_threat};
 use crate::settings::Settings;
 
 // --- Per-frame snapshot ---------------------------------------------------------
@@ -31,6 +31,8 @@ pub(super) struct Snapshot {
     pub(super) local: [f32; 2],
     pub(super) bounds: Option<Bounds>,
     pub(super) items: Vec<Item>,
+    /// Nearby players who would trigger an alert in this zone.
+    pub(super) threats: usize,
 }
 
 pub(super) fn snapshot(game: &Game, s: &Settings) -> Snapshot {
@@ -86,7 +88,13 @@ pub(super) fn snapshot(game: &Game, s: &Settings) -> Snapshot {
         }
     }
     let bounds = zone.as_ref().and_then(|z| game.data().zone(&z.id)).and_then(|z| z.bounds);
-    Snapshot { zone, local: game.local, bounds, items }
+    let threats = zone.as_ref().map_or(0, |z| {
+        game.players
+            .values()
+            .filter(|p| is_threat(p.faction, z.pvp) && !s.is_ignored(&[&p.name, &p.guild, &p.alliance]))
+            .count()
+    });
+    Snapshot { zone, local: game.local, bounds, items, threats }
 }
 
 /// `T6_MOB_KEEPER_DRUID_BOSS` -> `Keeper Druid Boss`.
